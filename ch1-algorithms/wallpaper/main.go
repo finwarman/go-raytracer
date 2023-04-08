@@ -59,7 +59,7 @@ func createWallpaperImage(rect image.Rectangle, corna float64, cornb float64, si
 				}
 			} else {
 				for x := 0; x < 4; x++ {
-					pix[(stride*j+(i+(x)))%len(pix)] = 0x10
+					pix[(stride*j+(i+(x)))%len(pix)] = 0x55
 				}
 			}
 		}

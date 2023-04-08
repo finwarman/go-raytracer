@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/rand"
 	"image"
 	"math"
 	"time"
@@ -21,15 +20,6 @@ func main() {
 	w.Resize(fyne.NewSize(float32(W), float32(H)))
 
 	rect := image.Rect(0, 0, W/5, H/5)
-	// img := createRandomImage(rect)
-	img := createWallpaperImage(rect, 3.0, 3.0, 3.0)
-
-	image := canvas.NewImageFromImage(img)
-	image.FillMode = canvas.ImageFillContain
-	image.ScaleMode = canvas.ImageScalePixels
-	c.SetContent(image)
-
-	// TODO: inc wallpaper function and refresh
 	go func() {
 		for i := 0; i < 1000; i++ {
 			time.Sleep(time.Millisecond * 50)
@@ -61,17 +51,6 @@ func createWallpaperImage(rect image.Rectangle, corna float64, cornb float64, si
 		}
 	}
 
-	created = &image.NRGBA{
-		Pix:    pix,
-		Stride: rect.Dx() * 4,
-		Rect:   rect,
-	}
-	return
-}
-
-func createRandomImage(rect image.Rectangle) (created *image.NRGBA) {
-	pix := make([]uint8, rect.Dx()*rect.Dy()*4)
-	rand.Read(pix)
 	created = &image.NRGBA{
 		Pix:    pix,
 		Stride: rect.Dx() * 4,

@@ -16,14 +16,14 @@ func main() {
 
 	c := w.Canvas()
 
-	W, H := 800, 600
-	w.Resize(fyne.NewSize(float32(W), float32(H)))
+	width, height := 800, 600
+	w.Resize(fyne.NewSize(float32(width), float32(height)))
 
-	rect := image.Rect(0, 0, W/4, H/4)
 	go func() {
 		for i := 100.0; i >= 0.0; i = math.Mod((i + 0.005), 0xffff) {
-			// for i := 0.0; i >= 0.0; i = math.Mod((i + 0.005), 0xffff) {
-			time.Sleep(time.Millisecond * 50)
+			size := w.Content().Size()
+			width, height := int(size.Width), int(size.Height)
+			rect := image.Rect(0, 0, width/4, height/4)
 
 			img := createWallpaperImage(rect, float64(i), float64(i*2), float64(i*3))
 			image := canvas.NewImageFromImage(img)
@@ -31,6 +31,7 @@ func main() {
 			image.ScaleMode = canvas.ImageScalePixels
 
 			c.SetContent(image)
+			time.Sleep(time.Millisecond * 50)
 		}
 	}()
 

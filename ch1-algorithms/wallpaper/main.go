@@ -19,12 +19,13 @@ func main() {
 	W, H := 800, 600
 	w.Resize(fyne.NewSize(float32(W), float32(H)))
 
-	rect := image.Rect(0, 0, W/5, H/5)
+	rect := image.Rect(0, 0, W/4, H/4)
 	go func() {
-		for i := 0; i < 1000; i++ {
+		for i := 100.0; i >= 0.0; i = math.Mod((i + 0.005), 0xffff) {
+			// for i := 0.0; i >= 0.0; i = math.Mod((i + 0.005), 0xffff) {
 			time.Sleep(time.Millisecond * 50)
 
-			img := createWallpaperImage(rect, float64(i), float64(i), 3.0)
+			img := createWallpaperImage(rect, float64(i), float64(i*2), float64(i*3))
 			image := canvas.NewImageFromImage(img)
 			image.FillMode = canvas.ImageFillContain
 			image.ScaleMode = canvas.ImageScalePixels
@@ -39,14 +40,26 @@ func main() {
 
 func createWallpaperImage(rect image.Rectangle, corna float64, cornb float64, side float64) (created *image.NRGBA) {
 	pix := make([]uint8, rect.Dx()*rect.Dy()*4)
+	stride := rect.Dx() * 4
 
-	for i := 0; i < rect.Dx(); i++ {
-		for j := 0; j < rect.Dy()*4; j++ {
-			x := corna + float64(i)*side/100
-			y := cornb + float64(j)*side/100
+	for i := 0; i < rect.Dx()*4; i += 4 {
+		for j := 0; j < rect.Dy(); j++ {
+			x := corna + float64(i)*side/float64(rect.Dx())
+			y := cornb + float64(j)*side/float64(rect.Dy())
 			c := int(math.Pow(x, 2) + math.Pow(y, 2))
-			if c%2 == 0 {
-				pix[rect.Dx()*j+i] = 255
+			if c%4 == 0 {
+				pix[(stride*j+(i+(0)))%len(pix)] = 0xf0 // R
+				pix[(stride*j+(i+(1)))%len(pix)] = 0xa0 // G
+				pix[(stride*j+(i+(2)))%len(pix)] = 0x50 // B
+				pix[(stride*j+(i+(3)))%len(pix)] = 0xff // A
+			} else if c%2 == 0 {
+				for x := 0; x < 4; x++ {
+					pix[(stride*j+(i+(x)))%len(pix)] = 0xf0
+				}
+			} else {
+				for x := 0; x < 4; x++ {
+					pix[(stride*j+(i+(x)))%len(pix)] = 0x10
+				}
 			}
 		}
 	}

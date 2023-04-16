@@ -28,7 +28,7 @@ func main() {
 	image := canvas.NewImageFromImage(img)
 	image.FillMode = canvas.ImageFillContain
 	image.ScaleMode = canvas.ImageScalePixels
-	if scale < 1.0 {
+	if scale < 1 {
 		image.ScaleMode = canvas.ImageScaleSmooth
 	}
 
@@ -68,7 +68,7 @@ func createImage(rect image.Rectangle) (img *image.NRGBA) {
 		{
 			Centre:   rt.Vector3f{X: 7.0, Y: 5.0, Z: -18.0},
 			Radius:   4.0,
-			Material: rt.Ivory,
+			Material: rt.Mirror,
 		},
 	}
 
@@ -102,7 +102,7 @@ func render(img *image.NRGBA, width, height int, fov float64, lights []*rt.Light
 			origin := rt.Vector3f{X: 0, Y: 0, Z: 0}
 			direction := rt.Vector3f{X: x, Y: y, Z: -1}.Normalised()
 
-			c := castRay(origin, direction, lights, spheres)
+			c := castRay(origin, direction, lights, spheres, 0)
 
 			img.Set(i, j, c)
 		}
@@ -110,13 +110,33 @@ func render(img *image.NRGBA, width, height int, fov float64, lights []*rt.Light
 
 }
 
-func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sphere) color.NRGBA {
+const MaxRayRecursionDepth = 4
+
+func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sphere, depth int) color.NRGBA {
 	var point, normal rt.Vector3f
 	var material rt.Material
 
-	intersected := sceneIntersect(origin, direction, &point, &normal, &material, spheres)
-	if !intersected {
+	if depth > MaxRayRecursionDepth || !sceneIntersect(origin, direction, &point, &normal, &material, spheres) {
 		return rt.BackgroundColour
+	}
+
+	reflectDir := reflect(direction.Multiply(-1.0), normal).Normalised()
+	// (technically doesn't need to be normalised / already is)
+
+	reflectOrigin := point
+	// offset the original point to avoid occlusion by the object itself
+	if reflectDir.Dot(normal) < 0 {
+		reflectOrigin = reflectOrigin.Sub(normal.Multiply(1.0 / 1000))
+	} else {
+		reflectOrigin = reflectOrigin.Add(normal.Multiply(1.0 / 1000))
+	}
+
+	// recursively calculate reflections (up to max depth)
+	reflectColour := castRay(reflectOrigin, reflectDir, lights, spheres, depth+1)
+	reflectColourVec := rt.Vector3f{
+		X: float64(reflectColour.R),
+		Y: float64(reflectColour.G),
+		Z: float64(reflectColour.B),
 	}
 
 	diffuseLightIntensity := 0.0
@@ -166,7 +186,7 @@ func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sp
 	// phong = ambient + diffuse + specular
 	cVec = cVec.Multiply(diffuseLightIntensity).Multiply(material.Albedo.X).Add(
 		rt.Vector3f{X: 0xff, Y: 0xff, Z: 0xff}.Multiply(specularLightIntensity).Multiply(material.Albedo.Y),
-	)
+	).Add(reflectColourVec.Multiply(material.Albedo.Z))
 
 	// prevent brightness from exceeding maximum
 	max := math.Max(float64(cVec.X), math.Max(cVec.Y, cVec.Z))

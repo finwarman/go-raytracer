@@ -19,15 +19,18 @@ func main() {
 	c := w.Canvas()
 
 	width, height := 1024, 768
-	scale := 4 // pixels per pixel in image
+	scale := 2.0 // pixels per pixel in image
 	w.Resize(fyne.NewSize(float32(width), float32(height)))
 
-	rect := image.Rect(0, 0, width/scale, height/scale)
+	rect := image.Rect(0, 0, int(float64(width)/scale), int(float64(height)/scale))
 	img := createImage(rect)
 
 	image := canvas.NewImageFromImage(img)
 	image.FillMode = canvas.ImageFillContain
 	image.ScaleMode = canvas.ImageScalePixels
+	if scale < 1.0 {
+		image.ScaleMode = canvas.ImageScaleSmooth
+	}
 
 	c.SetContent(image)
 

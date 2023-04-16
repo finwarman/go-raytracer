@@ -53,22 +53,22 @@ func createImage(rect image.Rectangle) (img *image.NRGBA) {
 		{
 			Centre:   rt.Vector3f{X: -3.0, Y: 0.0, Z: -16.0},
 			Radius:   2.0,
-			Material: rt.Material{DiffuseColour: rt.Ivory},
+			Material: rt.Ivory,
 		},
 		{
 			Centre:   rt.Vector3f{X: -1.0, Y: -1.5, Z: -12.0},
 			Radius:   2.0,
-			Material: rt.Material{DiffuseColour: rt.RedRubber},
+			Material: rt.RedRubber,
 		},
 		{
 			Centre:   rt.Vector3f{X: 1.5, Y: -0.5, Z: -18.0},
 			Radius:   3.0,
-			Material: rt.Material{DiffuseColour: rt.RedRubber},
+			Material: rt.RedRubber,
 		},
 		{
 			Centre:   rt.Vector3f{X: 7.0, Y: 5.0, Z: -18.0},
 			Radius:   4.0,
-			Material: rt.Material{DiffuseColour: rt.Ivory},
+			Material: rt.Ivory,
 		},
 	}
 
@@ -76,6 +76,14 @@ func createImage(rect image.Rectangle) (img *image.NRGBA) {
 		{
 			Position:  rt.Vector3f{X: -20.0, Y: 20.0, Z: 20.0},
 			Intensity: 1.5,
+		},
+		{
+			Position:  rt.Vector3f{X: 30.0, Y: 50.0, Z: -25.0},
+			Intensity: 1.8,
+		},
+		{
+			Position:  rt.Vector3f{X: 30.0, Y: 20.0, Z: 30.0},
+			Intensity: 1.7,
 		},
 	}
 
@@ -94,36 +102,65 @@ func render(img *image.NRGBA, width, height int, fov float64, lights []*rt.Light
 			origin := rt.Vector3f{X: 0, Y: 0, Z: 0}
 			direction := rt.Vector3f{X: x, Y: y, Z: -1}.Norm()
 
-			img.Set(i, j, castRay(origin, direction, lights, spheres))
+			c := castRay(origin, direction, lights, spheres)
+
+			img.Set(i, j, c)
 		}
 	}
 
 }
 
 func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sphere) color.NRGBA {
-	var point, N rt.Vector3f
+	var point, normal rt.Vector3f
 	var material rt.Material
 
-	intersected := sceneIntersect(origin, direction, &point, &N, &material, spheres)
+	intersected := sceneIntersect(origin, direction, &point, &normal, &material, spheres)
 	if !intersected {
 		return rt.BackgroundColour
 	}
 
 	diffuseLightIntensity := 0.0
+	specularLightIntensity := 0.0
+
 	for i := 0; i < len(lights); i++ {
 		lightDir := (lights[i].Position.Sub(point)).Norm()
-		diffuseLightIntensity += lights[i].Intensity * math.Max(0.0, lightDir.Dot(N))
+		diffuseLightIntensity += lights[i].Intensity * math.Max(0.0, lightDir.Dot(normal))
+		specularLightIntensity += math.Pow(
+			math.Max(0.0, reflect(lightDir.Multiply(-1), normal).Dot(direction)),
+			material.SpecularExponent,
+		) * lights[i].Intensity
 	}
 
-	// material diffuse colour * light intensity
+	// TODO: define multiply function (with limiting) for colours instead of converting to vec
 	c := material.DiffuseColour
+	cVec := rt.Vector3f{
+		X: float64(c.R),
+		Y: float64(c.G),
+		Z: float64(c.B),
+	}
+
+	// diffuse
+	// cVec = cVec.Multiply(diffuseLightIntensity)
+
+	// phong = ambient + diffuse + specular
+	cVec = cVec.Multiply(diffuseLightIntensity).Multiply(material.Albedo.X).Add(
+		rt.Vector3f{X: 0xff, Y: 0xff, Z: 0xff}.Multiply(specularLightIntensity).Multiply(material.Albedo.Y),
+	)
+
+	// prevent brightness from exceeding maximum
+	max := math.Max(float64(cVec.X), math.Max(cVec.Y, cVec.Z))
+	if max > 0xff {
+		cVec.X *= 0xff / max
+		cVec.Y *= 0xff / max
+		cVec.Z *= 0xff / max
+	}
+
 	return color.NRGBA{
-		R: uint8(float64(c.R) * diffuseLightIntensity),
-		G: uint8(float64(c.G) * diffuseLightIntensity),
-		B: uint8(float64(c.B) * diffuseLightIntensity),
+		R: uint8(cVec.X),
+		G: uint8(cVec.Y),
+		B: uint8(cVec.Z),
 		A: c.A,
 	}
-	// TODO: define multiple function for colours?
 }
 
 func sceneIntersect(origin, direction rt.Vector3f, hit, N *rt.Vector3f, material *rt.Material, spheres []*rt.Sphere) bool {
@@ -140,4 +177,8 @@ func sceneIntersect(origin, direction rt.Vector3f, hit, N *rt.Vector3f, material
 	}
 
 	return spheresDist < 1000
+}
+
+func reflect(I, N rt.Vector3f) rt.Vector3f {
+	return I.Sub(N.Multiply(2.0).Cross(I.Cross(N)))
 }

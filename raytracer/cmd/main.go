@@ -52,6 +52,21 @@ func createImage(rect image.Rectangle) (img *image.NRGBA) {
 			Radius:   2.0,
 			Material: rt.Material{Colour: rt.Ivory},
 		},
+		{
+			Centre:   rt.Vector3f{X: -1.0, Y: -1.5, Z: -12.0},
+			Radius:   2.0,
+			Material: rt.Material{Colour: rt.RedRubber},
+		},
+		{
+			Centre:   rt.Vector3f{X: 1.5, Y: -0.5, Z: -18.0},
+			Radius:   3.0,
+			Material: rt.Material{Colour: rt.RedRubber},
+		},
+		{
+			Centre:   rt.Vector3f{X: 7.0, Y: 5.0, Z: -18.0},
+			Radius:   4.0,
+			Material: rt.Material{Colour: rt.Ivory},
+		},
 	}
 
 	render(img, width, height, fov, spheres)
@@ -97,10 +112,6 @@ func sceneIntersect(origin, direction rt.Vector3f, hit, N *rt.Vector3f, material
 			*N = hit.Sub(spheres[i].Centre).Norm()
 			*material = spheres[i].Material
 		}
-	}
-
-	if spheresDist < 100000 {
-		println(spheresDist)
 	}
 
 	return spheresDist < 1000

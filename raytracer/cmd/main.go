@@ -19,7 +19,7 @@ func main() {
 	c := w.Canvas()
 
 	width, height := 1024, 768
-	scale := 2.0 // pixels per pixel in image
+	scale := 1.0 // pixels per pixel in image
 	w.Resize(fyne.NewSize(float32(width), float32(height)))
 
 	rect := image.Rect(0, 0, int(float64(width)/scale), int(float64(height)/scale))

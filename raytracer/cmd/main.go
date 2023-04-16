@@ -100,7 +100,7 @@ func render(img *image.NRGBA, width, height int, fov float64, lights []*rt.Light
 			y := -1.0 * (2*(float64(j)+0.5)/float64(height) - 1) * math.Tan(fov/2.0)
 
 			origin := rt.Vector3f{X: 0, Y: 0, Z: 0}
-			direction := rt.Vector3f{X: x, Y: y, Z: -1}.Norm()
+			direction := rt.Vector3f{X: x, Y: y, Z: -1}.Normalised()
 
 			c := castRay(origin, direction, lights, spheres)
 
@@ -123,7 +123,28 @@ func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sp
 	specularLightIntensity := 0.0
 
 	for i := 0; i < len(lights); i++ {
-		lightDir := (lights[i].Position.Sub(point)).Norm()
+		lightDir := (lights[i].Position.Sub(point)).Normalised()
+		lightDist := (lights[i].Position.Sub(point)).Norm()
+
+		// determine shadows
+		//  make sure that the segment between the current point and the light
+		//  source does not intersect the objects in the scene
+		//  if there is an intersection we skip the current light source
+		//  (and move the point in the direction of the normal)
+		shadowOrigin := point
+		if lightDir.Dot(normal) < 0.0 {
+			shadowOrigin = shadowOrigin.Sub(normal.Multiply(1.0 / 1000))
+		} else {
+			shadowOrigin = shadowOrigin.Add(normal.Multiply(1.0 / 1000))
+		}
+		var shadowPoint, shadowNormal rt.Vector3f
+		var tmpMaterial rt.Material
+		if sceneIntersect(shadowOrigin, lightDir, &shadowPoint, &shadowNormal, &tmpMaterial, spheres) &&
+			(shadowPoint.Sub(shadowOrigin).Norm() < lightDist) {
+			continue
+		}
+
+		// determine brightness / reflection
 		diffuseLightIntensity += lights[i].Intensity * math.Max(0.0, lightDir.Dot(normal))
 		specularLightIntensity += math.Pow(
 			math.Max(0.0, reflect(lightDir.Multiply(-1), normal).Dot(direction)),
@@ -171,7 +192,7 @@ func sceneIntersect(origin, direction rt.Vector3f, hit, N *rt.Vector3f, material
 		if spheres[i].RayIntersect(origin, direction, &dist_i) && dist_i < spheresDist {
 			spheresDist = dist_i
 			*hit = origin.Add(direction.Multiply(dist_i))
-			*N = hit.Sub(spheres[i].Centre).Norm()
+			*N = hit.Sub(spheres[i].Centre).Normalised()
 			*material = spheres[i].Material
 		}
 	}

@@ -47,8 +47,13 @@ func (a Vector3f) Cross(b Vector3f) Vector3f {
 	}
 }
 
-func (a Vector3f) Norm() Vector3f {
-	return a.Multiply(1.0 / a.Length())
+func (a Vector3f) Normalised() Vector3f {
+	return a.Multiply(1.0 / a.Norm())
+}
+
+// alias for length
+func (a Vector3f) Norm() float64 {
+	return a.Length()
 }
 
 // Vector2f
@@ -85,6 +90,11 @@ func (a Vector2f) Length() float64 {
 	return math.Sqrt(a.Dot(a))
 }
 
-func (a Vector2f) Norm() Vector2f {
-	return a.Multiply(1.0 / a.Length())
+func (a Vector2f) Normalised() Vector2f {
+	return a.Multiply(1.0 / a.Norm())
+}
+
+// alias for length
+func (a Vector2f) Norm() float64 {
+	return a.Length()
 }

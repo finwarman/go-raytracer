@@ -9,7 +9,7 @@ var Ivory = FloatToRGB(0.4, 0.4, 0.4, 1.0)
 var RedRubber = FloatToRGB(0.3, 0.1, 0.1, 1.0)
 
 type Material struct {
-	Colour color.NRGBA
+	DiffuseColour color.NRGBA
 }
 
 func FloatToRGB(r, g, b, a float64) color.NRGBA {

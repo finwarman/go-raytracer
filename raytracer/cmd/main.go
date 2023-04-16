@@ -39,7 +39,7 @@ func main() {
 
 func createImage(rect image.Rectangle) (img *image.NRGBA) {
 	width, height := rect.Dx(), rect.Dy()
-	fov := math.Pi / 2.0
+	fov := math.Pi / 3.0
 
 	stride := width * 4
 	pix := make([]uint8, width*stride)
@@ -53,47 +53,54 @@ func createImage(rect image.Rectangle) (img *image.NRGBA) {
 		{
 			Centre:   rt.Vector3f{X: -3.0, Y: 0.0, Z: -16.0},
 			Radius:   2.0,
-			Material: rt.Material{Colour: rt.Ivory},
+			Material: rt.Material{DiffuseColour: rt.Ivory},
 		},
 		{
 			Centre:   rt.Vector3f{X: -1.0, Y: -1.5, Z: -12.0},
 			Radius:   2.0,
-			Material: rt.Material{Colour: rt.RedRubber},
+			Material: rt.Material{DiffuseColour: rt.RedRubber},
 		},
 		{
 			Centre:   rt.Vector3f{X: 1.5, Y: -0.5, Z: -18.0},
 			Radius:   3.0,
-			Material: rt.Material{Colour: rt.RedRubber},
+			Material: rt.Material{DiffuseColour: rt.RedRubber},
 		},
 		{
 			Centre:   rt.Vector3f{X: 7.0, Y: 5.0, Z: -18.0},
 			Radius:   4.0,
-			Material: rt.Material{Colour: rt.Ivory},
+			Material: rt.Material{DiffuseColour: rt.Ivory},
 		},
 	}
 
-	render(img, width, height, fov, spheres)
+	lights := []*rt.Light{
+		{
+			Position:  rt.Vector3f{X: -20.0, Y: 20.0, Z: 20.0},
+			Intensity: 1.5,
+		},
+	}
+
+	render(img, width, height, fov, lights, spheres)
 	return img
 }
 
 // TODO: goroutine parallelise rendering
-func render(img *image.NRGBA, width, height int, fov float64, spheres []*rt.Sphere) {
+func render(img *image.NRGBA, width, height int, fov float64, lights []*rt.Light, spheres []*rt.Sphere) {
 	for i := 0; i < width; i++ {
 		for j := 0; j < height; j++ {
 			// TODO: what are these formulae? abstract into functions?
-			x := (2*(float64(i)+0.5)/float64(width) - 1) * math.Tan(float64(fov)/2.0) * float64(width) / float64(height)
-			y := -1.0 * (2*(float64(j)+0.5)/float64(height) - 1) * math.Tan(float64(fov)/2.0)
+			x := (2*(float64(i)+0.5)/float64(width) - 1) * math.Tan(fov/2.0) * float64(width) / float64(height)
+			y := -1.0 * (2*(float64(j)+0.5)/float64(height) - 1) * math.Tan(fov/2.0)
 
 			origin := rt.Vector3f{X: 0, Y: 0, Z: 0}
 			direction := rt.Vector3f{X: x, Y: y, Z: -1}.Norm()
 
-			img.Set(i, j, castRay(origin, direction, spheres))
+			img.Set(i, j, castRay(origin, direction, lights, spheres))
 		}
 	}
 
 }
 
-func castRay(origin, direction rt.Vector3f, spheres []*rt.Sphere) color.NRGBA {
+func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sphere) color.NRGBA {
 	var point, N rt.Vector3f
 	var material rt.Material
 
@@ -101,7 +108,22 @@ func castRay(origin, direction rt.Vector3f, spheres []*rt.Sphere) color.NRGBA {
 	if !intersected {
 		return rt.BackgroundColour
 	}
-	return material.Colour
+
+	diffuseLightIntensity := 0.0
+	for i := 0; i < len(lights); i++ {
+		lightDir := (lights[i].Position.Sub(point)).Norm()
+		diffuseLightIntensity += lights[i].Intensity * math.Max(0.0, lightDir.Dot(N))
+	}
+
+	// material diffuse colour * light intensity
+	c := material.DiffuseColour
+	return color.NRGBA{
+		R: uint8(float64(c.R) * diffuseLightIntensity),
+		G: uint8(float64(c.G) * diffuseLightIntensity),
+		B: uint8(float64(c.B) * diffuseLightIntensity),
+		A: c.A,
+	}
+	// TODO: define multiple function for colours?
 }
 
 func sceneIntersect(origin, direction rt.Vector3f, hit, N *rt.Vector3f, material *rt.Material, spheres []*rt.Sphere) bool {

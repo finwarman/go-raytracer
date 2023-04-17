@@ -21,25 +21,45 @@ func main() {
 	c := w.Canvas()
 
 	width, height := 1024, 768
-	scale := 1.0 // pixels per pixel in image
+	scale := 5.0 // pixels per pixel in image
 	w.Resize(fyne.NewSize(float32(width), float32(height)))
 
 	rect := image.Rect(0, 0, int(float64(width)/scale), int(float64(height)/scale))
-	img := createImage(rect)
 
-	image := canvas.NewImageFromImage(img)
-	image.FillMode = canvas.ImageFillContain
-	image.ScaleMode = canvas.ImageScalePixels
-	if scale < 1 {
-		image.ScaleMode = canvas.ImageScaleSmooth
-	}
+	go func() {
+		for {
+			for i := 0.0; i <= 10; i += 0.1 {
+				// TODO: for window resizing
+				// size := w.Content().Size()
+				// width, height := int(size.Width), int(size.Height)
+				// rect := image.Rect(0, 0, width/4, height/4)
 
-	c.SetContent(image)
+				// start := time.Now()
+				// todo: use time elapsed for max wait
+
+				img := createImage(rect, i)
+				image := canvas.NewImageFromImage(img)
+				image.FillMode = canvas.ImageFillContain
+				image.ScaleMode = canvas.ImageScalePixels
+				if scale < 1 {
+					image.ScaleMode = canvas.ImageScaleSmooth
+				}
+				c.SetContent(image)
+
+				// frame time from fps
+				// fps := 24
+				// frametime := 1000.0 / fps
+				// time.Sleep(time.Duration(frametime))
+
+				// todo: calculate framerate and update window
+			}
+		}
+	}()
 
 	w.ShowAndRun()
 }
 
-func createImage(rect image.Rectangle) (img *image.NRGBA) {
+func createImage(rect image.Rectangle, i float64) (img *image.NRGBA) {
 	width, height := rect.Dx(), rect.Dy()
 	fov := math.Pi / 3.0
 
@@ -58,7 +78,7 @@ func createImage(rect image.Rectangle) (img *image.NRGBA) {
 			Material: rt.Ivory,
 		},
 		{
-			Centre:   rt.Vector3f{X: -1.0, Y: -1.5, Z: -12.0},
+			Centre:   rt.Vector3f{X: -5.0 + i, Y: -1.5 + (i / 3), Z: -12.0 + (i / 2)},
 			Radius:   2.0,
 			Material: rt.Glass,
 		},

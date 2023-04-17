@@ -12,6 +12,8 @@ import (
 	rt "github.com/finwarman/raytracer/raytracer"
 )
 
+const MaxRayRecursionDepth = 4
+
 func main() {
 	a := app.New()
 	w := a.NewWindow("wallpaper")
@@ -58,7 +60,7 @@ func createImage(rect image.Rectangle) (img *image.NRGBA) {
 		{
 			Centre:   rt.Vector3f{X: -1.0, Y: -1.5, Z: -12.0},
 			Radius:   2.0,
-			Material: rt.RedRubber,
+			Material: rt.Glass,
 		},
 		{
 			Centre:   rt.Vector3f{X: 1.5, Y: -0.5, Z: -18.0},
@@ -110,8 +112,6 @@ func render(img *image.NRGBA, width, height int, fov float64, lights []*rt.Light
 
 }
 
-const MaxRayRecursionDepth = 4
-
 func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sphere, depth int) color.NRGBA {
 	var point, normal rt.Vector3f
 	var material rt.Material
@@ -120,15 +120,25 @@ func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sp
 		return rt.BackgroundColour
 	}
 
-	reflectDir := reflect(direction.Multiply(-1.0), normal).Normalised()
-	// (technically doesn't need to be normalised / already is)
+	// calculate reflections and refractions
 
-	reflectOrigin := point
+	reflectDir := reflect(direction.Multiply(-1.0), normal).Normalised()
+	refractDir := refract(direction.Multiply(1.0), normal, material.RefractiveIndex).Normalised()
+	// refractDir := refract(direction.Multiply(-1.0), normal, material.RefractiveIndex).Normalised()
+
 	// offset the original point to avoid occlusion by the object itself
+	reflectOrigin := point
 	if reflectDir.Dot(normal) < 0 {
 		reflectOrigin = reflectOrigin.Sub(normal.Multiply(1.0 / 1000))
 	} else {
 		reflectOrigin = reflectOrigin.Add(normal.Multiply(1.0 / 1000))
+	}
+
+	refractOrigin := point
+	if refractDir.Dot(normal) < 0 {
+		refractOrigin = refractOrigin.Sub(normal.Multiply(1.0 / 1000))
+	} else {
+		refractOrigin = refractOrigin.Add(normal.Multiply(1.0 / 1000))
 	}
 
 	// recursively calculate reflections (up to max depth)
@@ -137,6 +147,13 @@ func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sp
 		X: float64(reflectColour.R),
 		Y: float64(reflectColour.G),
 		Z: float64(reflectColour.B),
+	}
+
+	refractColour := castRay(refractOrigin, refractDir, lights, spheres, depth+1)
+	refractColourVec := rt.Vector3f{
+		X: float64(refractColour.R),
+		Y: float64(refractColour.G),
+		Z: float64(refractColour.B),
 	}
 
 	diffuseLightIntensity := 0.0
@@ -184,9 +201,10 @@ func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sp
 	// cVec = cVec.Multiply(diffuseLightIntensity)
 
 	// phong = ambient + diffuse + specular
-	cVec = cVec.Multiply(diffuseLightIntensity).Multiply(material.Albedo.X).Add(
-		rt.Vector3f{X: 0xff, Y: 0xff, Z: 0xff}.Multiply(specularLightIntensity).Multiply(material.Albedo.Y),
-	).Add(reflectColourVec.Multiply(material.Albedo.Z))
+	cVec = cVec.Multiply(diffuseLightIntensity).Multiply(material.Albedo[0]).Add(
+		rt.Vector3f{X: 0xff, Y: 0xff, Z: 0xff}.Multiply(specularLightIntensity).Multiply(material.Albedo[1]),
+	).Add(reflectColourVec.Multiply(material.Albedo[2])).Add(
+		refractColourVec.Multiply(material.Albedo[3]))
 
 	// prevent brightness from exceeding maximum
 	max := math.Max(float64(cVec.X), math.Max(cVec.Y, cVec.Z))
@@ -220,6 +238,37 @@ func sceneIntersect(origin, direction rt.Vector3f, hit, N *rt.Vector3f, material
 	return spheresDist < 1000
 }
 
+// TODO: rename args to better names
 func reflect(I, N rt.Vector3f) rt.Vector3f {
 	return I.Sub(N.Multiply(2.0).Cross(I.Cross(N)))
 }
+
+func refract(I, N rt.Vector3f, refractiveIndex float64) rt.Vector3f {
+	// snell's law
+
+	cosi := -1 * math.Max(-1.0, math.Min(1.0, I.Dot(N)))
+	etai := 1.0
+	etat := refractiveIndex
+	n := N
+
+	// if the ray is inside the object, swap the indices and invert the normal to get the correct result
+	if cosi < 0 {
+		cosi = -1 * cosi
+		etai, etat = etat, etai
+		n = N.Multiply(-1.0)
+	}
+	eta := etai / etat
+
+	sin := 1.0 - (cosi * cosi)
+	k := 1.0 - (eta * eta * sin)
+
+	if k < 0 {
+		zero := math.SmallestNonzeroFloat64 // stop divide by zero on normalise
+		return rt.Vector3f{X: zero, Y: zero, Z: zero}
+	} else {
+		return I.Multiply(eta).Add(n.Multiply(eta*cosi - math.Sqrt(k)))
+	}
+}
+
+// TODO: apply this fix
+// https://github.com/ssloy/tinyraytracer/commit/cc608d433d37a9116eee6da2467b8ac737b0a685#diff-6e69910b828e4c7d9cb06a9b779660c6R55

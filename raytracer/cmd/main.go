@@ -17,7 +17,7 @@ import (
 	rt "github.com/finwarman/raytracer/raytracer"
 )
 
-const MaxRayRecursionDepth = 4
+const MaxRayRecursionDepth = 5
 
 func main() {
 	a := app.New()
@@ -185,7 +185,8 @@ func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sp
 		// return rt.BackgroundColour
 
 		// create skybox:
-		// find u and v on the nvmap sphere in range of [0,1]
+		// find u and v on the envmap sphere in range of [0,1]
+		// https://en.wikipedia.org/wiki/UV_mapping#Finding_UV_on_a_sphere
 		u := 0.5 + (math.Atan2(direction.Z, direction.X) / (2 * math.Pi))
 		v := 0.5 - (math.Asin(direction.Y) / (math.Pi))
 		imgWidth, imgHeight := envmap.Bounds().Dx(), envmap.Bounds().Dy()

@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
 	"math"
+	"os"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -48,6 +50,10 @@ func main() {
 	}
 	c.SetContent(image)
 
+	// load background image
+	pwd, _ := os.Getwd()
+	envmap := loadImage(pwd + "/files/envmap.jpg")
+
 	go func() {
 		// rolling avg fps
 		var fpsRolling float64
@@ -60,7 +66,7 @@ func main() {
 
 				text.SetText(fmt.Sprintf("%-4.1f fps", fpsRolling))
 
-				image.Image = createImage(rect, i)
+				image.Image = createImage(rect, envmap, i)
 				image.Refresh()
 
 				// pause if required to maintain target fps
@@ -87,7 +93,7 @@ func main() {
 	w.ShowAndRun()
 }
 
-func createImage(rect image.Rectangle, i float64) (img *image.NRGBA) {
+func createImage(rect image.Rectangle, envmap *image.NRGBA, i float64) (img *image.NRGBA) {
 	width, height := rect.Dx(), rect.Dy()
 	fov := math.Pi / 3.0
 
@@ -138,13 +144,13 @@ func createImage(rect image.Rectangle, i float64) (img *image.NRGBA) {
 		},
 	}
 
-	render(img, width, height, fov, lights, spheres)
+	render(img, width, height, fov, lights, spheres, envmap)
 	return img
 }
 
 type empty struct{}
 
-func render(img *image.NRGBA, width, height int, fov float64, lights []*rt.Light, spheres []*rt.Sphere) {
+func render(img *image.NRGBA, width, height int, fov float64, lights []*rt.Light, spheres []*rt.Sphere, envmap *image.NRGBA) {
 	sem := make(chan empty, width*height) // semaphore pattern
 
 	for i := 0; i < width; i++ {
@@ -158,7 +164,7 @@ func render(img *image.NRGBA, width, height int, fov float64, lights []*rt.Light
 
 			// parallelise
 			go func(i, j int) {
-				c := castRay(origin, direction, lights, spheres, 0)
+				c := castRay(origin, direction, lights, spheres, envmap, 0)
 				img.Set(i, j, c)
 				sem <- empty{}
 			}(i, j)
@@ -171,12 +177,26 @@ func render(img *image.NRGBA, width, height int, fov float64, lights []*rt.Light
 	}
 }
 
-func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sphere, depth int) color.NRGBA {
+func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sphere, envmap *image.NRGBA, depth int) color.NRGBA {
 	var point, normal rt.Vector3f
 	var material rt.Material
 
 	if depth > MaxRayRecursionDepth || !sceneIntersect(origin, direction, &point, &normal, &material, spheres) {
-		return rt.BackgroundColour
+		// return rt.BackgroundColour
+
+		// create skybox:
+		// find u and v on the nvmap sphere in range of [0,1]
+		u := 0.5 + (math.Atan2(direction.Z, direction.X) / (2 * math.Pi))
+		v := 0.5 - (math.Asin(direction.Y) / (math.Pi))
+		imgWidth, imgHeight := envmap.Bounds().Dx(), envmap.Bounds().Dy()
+		x := int(u * float64(imgWidth))
+		y := int(v * float64(imgHeight))
+
+		bg := *envmap
+		r, g, b, a := bg.At(x, y).RGBA()
+		return color.NRGBA{
+			uint8(r), uint8(g), uint8(b), uint8(a),
+		}
 	}
 
 	// calculate reflections and refractions
@@ -201,14 +221,14 @@ func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sp
 	}
 
 	// recursively calculate reflections (up to max depth)
-	reflectColour := castRay(reflectOrigin, reflectDir, lights, spheres, depth+1)
+	reflectColour := castRay(reflectOrigin, reflectDir, lights, spheres, envmap, depth+1)
 	reflectColourVec := rt.Vector3f{
 		X: float64(reflectColour.R),
 		Y: float64(reflectColour.G),
 		Z: float64(reflectColour.B),
 	}
 
-	refractColour := castRay(refractOrigin, refractDir, lights, spheres, depth+1)
+	refractColour := castRay(refractOrigin, refractDir, lights, spheres, envmap, depth+1)
 	refractColourVec := rt.Vector3f{
 		X: float64(refractColour.R),
 		Y: float64(refractColour.G),
@@ -352,3 +372,31 @@ func refract(I, N rt.Vector3f, refractiveIndex float64) rt.Vector3f {
 
 // TODO: apply this fix
 // https://github.com/ssloy/tinyraytracer/commit/cc608d433d37a9116eee6da2467b8ac737b0a685#diff-6e69910b828e4c7d9cb06a9b779660c6R55
+
+func loadImage(filePath string) *image.NRGBA {
+	imgFile, err := os.Open(filePath)
+	if err != nil {
+		fmt.Println("Cannot read file:", err)
+		os.Exit(1)
+	}
+	defer imgFile.Close()
+
+	img, _, err := image.Decode(imgFile)
+	if err != nil {
+		fmt.Println("Cannot decode file:", err)
+		os.Exit(1)
+	}
+
+	return convertToNRGBA(img)
+}
+
+// convertToNRGBA converts an image.Image to *image.NRGBA
+func convertToNRGBA(img image.Image) *image.NRGBA {
+	// Create a new *image.NRGBA with the same bounds as the original image
+	nrgba := image.NewNRGBA(img.Bounds())
+
+	// Draw the original image onto the new *image.NRGBA
+	draw.Draw(nrgba, nrgba.Bounds(), img, image.Point{}, draw.Src)
+
+	return nrgba
+}

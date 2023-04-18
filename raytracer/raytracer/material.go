@@ -6,6 +6,12 @@ import "image/color"
 // var BackgroundColour = FloatToRGB(0.2, 0.7, 0.8)
 var BackgroundColour = FloatToRGB(0.4, 0.4, 0.4)
 
+var Paper = Material{
+	DiffuseColour:    FloatToRGB(0.95, 0.95, 0.95),
+	SpecularExponent: 10.0,
+	Albedo:           [4]float64{0.5, 0.5, 0.5, 0.0},
+	RefractiveIndex:  1.0,
+}
 var Ivory = Material{
 	DiffuseColour:    FloatToRGB(0.4, 0.4, 0.3),
 	SpecularExponent: 50.0,

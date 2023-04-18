@@ -106,7 +106,8 @@ func createImage(rect image.Rectangle, i float64) (img *image.NRGBA) {
 			Material: rt.Ivory,
 		},
 		{
-			Centre:   rt.Vector3f{X: -5.0 + i, Y: -1.5 + (i / 3), Z: -12.0 + (i / 2)},
+			// Centre:   rt.Vector3f{X: -5.0 + i, Y: -1.5 + (i / 3), Z: -12.0 + (i / 2)},
+			Centre:   rt.Vector3f{X: -5.0 + i, Y: -1.5, Z: -12.0},
 			Radius:   2.0,
 			Material: rt.Glass,
 		},
@@ -295,7 +296,7 @@ func sceneIntersect(origin, direction rt.Vector3f, hit, N *rt.Vector3f, material
 	// checkerboard logic
 	checkerboardDist := math.MaxFloat64
 	if math.Abs(direction.Y) > 1.0/1000 {
-		d := (-1 * (origin.Y + 4)) / direction.Y // checkerboard plane y=4
+		d := (-1 * (origin.Y + 4.0)) / direction.Y // checkerboard plane y=4
 		pt := origin.Add(direction.Multiply(d))
 
 		if d > 0 && math.Abs(pt.X) < 10 && pt.Z < -10 && pt.Z > -30 && d < spheresDist {
@@ -303,10 +304,10 @@ func sceneIntersect(origin, direction rt.Vector3f, hit, N *rt.Vector3f, material
 			*hit = pt
 			*N = rt.Vector3f{X: 0.0, Y: 1.0, Z: 0.0}
 
-			*material = rt.RedRubber // copy reflective properties
+			*material = rt.Paper // copy reflective properties
 			// add checkerboard pattern:
 			if (int(0.5*hit.X+1000)+int(0.5*hit.Z))&1 > 0 {
-				material.DiffuseColour = rt.FloatToRGB(1.0, 1.0, 1.0)
+				material.DiffuseColour = rt.FloatToRGB(0.9, 0.9, 0.9)
 			} else {
 				material.DiffuseColour = rt.FloatToRGB(1.0, 0.7, 0.3)
 			}

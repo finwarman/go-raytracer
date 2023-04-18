@@ -143,7 +143,6 @@ func createImage(rect image.Rectangle, i float64) (img *image.NRGBA) {
 
 type empty struct{}
 
-// TODO: goroutine parallelise rendering
 func render(img *image.NRGBA, width, height int, fov float64, lights []*rt.Light, spheres []*rt.Sphere) {
 	sem := make(chan empty, width*height) // semaphore pattern
 
@@ -156,15 +155,12 @@ func render(img *image.NRGBA, width, height int, fov float64, lights []*rt.Light
 			origin := rt.Vector3f{X: 0, Y: 0, Z: 0}
 			direction := rt.Vector3f{X: x, Y: y, Z: -1}.Normalised()
 
+			// parallelise
 			go func(i, j int) {
 				c := castRay(origin, direction, lights, spheres, 0)
 				img.Set(i, j, c)
-
 				sem <- empty{}
 			}(i, j)
-
-			// c := castRay(origin, direction, lights, spheres, 0)
-			// img.Set(i, j, c)
 		}
 	}
 
@@ -259,9 +255,6 @@ func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sp
 		Z: float64(c.B),
 	}
 
-	// diffuse
-	// cVec = cVec.Multiply(diffuseLightIntensity)
-
 	// phong = ambient + diffuse + specular
 	cVec = cVec.Multiply(diffuseLightIntensity).Multiply(material.Albedo[0]).Add(
 		rt.Vector3f{X: 0xff, Y: 0xff, Z: 0xff}.Multiply(specularLightIntensity).Multiply(material.Albedo[1]),
@@ -299,8 +292,29 @@ func sceneIntersect(origin, direction rt.Vector3f, hit, N *rt.Vector3f, material
 		}
 	}
 
-	return spheresDist < 1000
-	// return math.Min(checkerboardDist, spheresDist) < 1000
+	// checkerboard logic
+	checkerboardDist := math.MaxFloat64
+	if math.Abs(direction.Y) > 1.0/1000 {
+		d := (-1 * (origin.Y + 4)) / direction.Y // checkerboard plane y=4
+		pt := origin.Add(direction.Multiply(d))
+
+		if d > 0 && math.Abs(pt.X) < 10 && pt.Z < -10 && pt.Z > -30 && d < spheresDist {
+			checkerboardDist = d
+			*hit = pt
+			*N = rt.Vector3f{X: 0.0, Y: 1.0, Z: 0.0}
+
+			*material = rt.RedRubber // copy reflective properties
+			// add checkerboard pattern:
+			if (int(0.5*hit.X+1000)+int(0.5*hit.Z))&1 > 0 {
+				material.DiffuseColour = rt.FloatToRGB(1.0, 1.0, 1.0)
+			} else {
+				material.DiffuseColour = rt.FloatToRGB(1.0, 0.7, 0.3)
+			}
+		}
+	}
+
+	// return spheresDist < 1000
+	return math.Min(checkerboardDist, spheresDist) < 1000
 }
 
 // TODO: rename args to better names

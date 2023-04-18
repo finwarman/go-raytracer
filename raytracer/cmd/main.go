@@ -17,7 +17,7 @@ import (
 	rt "github.com/finwarman/raytracer/raytracer"
 )
 
-const MaxRayRecursionDepth = 5
+const MaxRayRecursionDepth = 4
 
 func main() {
 	a := app.New()
@@ -26,7 +26,7 @@ func main() {
 	c := w.Canvas()
 
 	width, height := 1024, 768
-	scale := 4.0 // pixels per pixel in image
+	scale := 3.0 // pixels per pixel in image
 	w.Resize(fyne.NewSize(float32(width), float32(height)))
 
 	rect := image.Rect(0, 0, int(float64(width)/scale), int(float64(height)/scale))
@@ -151,28 +151,29 @@ func createImage(rect image.Rectangle, envmap *image.NRGBA, i float64) (img *ima
 type empty struct{}
 
 func render(img *image.NRGBA, width, height int, fov float64, lights []*rt.Light, spheres []*rt.Sphere, envmap *image.NRGBA) {
-	sem := make(chan empty, width*height) // semaphore pattern
+	sem := make(chan empty, width) // semaphore pattern
 
 	for i := 0; i < width; i++ {
-		for j := 0; j < height; j++ {
-			// TODO: what are these formulae? abstract into functions?
-			x := (2*(float64(i)+0.5)/float64(width) - 1) * math.Tan(fov/2.0) * float64(width) / float64(height)
-			y := -1.0 * (2*(float64(j)+0.5)/float64(height) - 1) * math.Tan(fov/2.0)
+		go func(i int) {
+			for j := 0; j < height; j++ {
+				// TODO: what are these formulae? abstract into functions?
+				x := (2*(float64(i)+0.5)/float64(width) - 1) * math.Tan(fov/2.0) * float64(width) / float64(height)
+				y := -1.0 * (2*(float64(j)+0.5)/float64(height) - 1) * math.Tan(fov/2.0)
 
-			origin := rt.Vector3f{X: 0, Y: 0, Z: 0}
-			direction := rt.Vector3f{X: x, Y: y, Z: -1}.Normalised()
+				origin := rt.Vector3f{X: 0, Y: 0, Z: 0}
+				direction := rt.Vector3f{X: x, Y: y, Z: -1}.Normalised()
 
-			// parallelise
-			go func(i, j int) {
 				c := castRay(origin, direction, lights, spheres, envmap, 0)
 				img.Set(i, j, c)
-				sem <- empty{}
-			}(i, j)
-		}
+			}
+			sem <- empty{}
+		}(i)
+
 	}
 
 	// wait for goroutines to finish
-	for i := 0; i < width*height; i++ {
+	// (complete for every column)
+	for i := 0; i < width; i++ {
 		<-sem
 	}
 }

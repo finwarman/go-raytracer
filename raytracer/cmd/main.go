@@ -60,13 +60,14 @@ func main() {
 		durIdx, durWindow := 0, 5
 		durations := make([]float64, durWindow)
 
+		min, max, offset := 0.0, math.Pi*2, 0.02
 		for {
-			for i := 0.0; i <= 10; i += 0.05 {
+			for i := min; i <= max; i += offset {
 				start := time.Now()
 
 				text.SetText(fmt.Sprintf("%-4.1f fps", fpsRolling))
 
-				image.Image = createImage(rect, envmap, i)
+				image.Image = createImage(rect, envmap, ((math.Sin(i))*8)+5)
 				image.Refresh()
 
 				// pause if required to maintain target fps
@@ -112,8 +113,8 @@ func createImage(rect image.Rectangle, envmap *image.NRGBA, i float64) (img *ima
 			Material: rt.Ivory,
 		},
 		{
-			// Centre:   rt.Vector3f{X: -5.0 + i, Y: -1.5 + (i / 3), Z: -12.0 + (i / 2)},
-			Centre:   rt.Vector3f{X: -5.0 + i, Y: -1.5, Z: -12.0},
+			Centre: rt.Vector3f{X: -5.0 + i, Y: -1.5 + (i / 3), Z: -12.0 + (i / 2)},
+			// Centre:   rt.Vector3f{X: -5.0 + i, Y: -1.5, Z: -12.0},
 			Radius:   2.0,
 			Material: rt.Glass,
 		},
@@ -124,7 +125,7 @@ func createImage(rect image.Rectangle, envmap *image.NRGBA, i float64) (img *ima
 		},
 		{
 			Centre:   rt.Vector3f{X: 7.0, Y: 5.0, Z: -18.0},
-			Radius:   4.0,
+			Radius:   5.0,
 			Material: rt.Mirror,
 		},
 	}

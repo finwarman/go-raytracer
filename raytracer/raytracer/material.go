@@ -3,7 +3,8 @@ package raytracer
 import "image/color"
 
 // colour at infinity
-var BackgroundColour = FloatToRGB(0.2, 0.7, 0.8)
+// var BackgroundColour = FloatToRGB(0.2, 0.7, 0.8)
+var BackgroundColour = FloatToRGB(0.4, 0.4, 0.4)
 
 var Ivory = Material{
 	DiffuseColour:    FloatToRGB(0.4, 0.4, 0.3),

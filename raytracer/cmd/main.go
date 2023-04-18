@@ -1,13 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"math"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/widget"
 
 	rt "github.com/finwarman/raytracer/raytracer"
 )
@@ -21,37 +24,62 @@ func main() {
 	c := w.Canvas()
 
 	width, height := 1024, 768
-	scale := 5.0 // pixels per pixel in image
+	scale := 4.0 // pixels per pixel in image
 	w.Resize(fyne.NewSize(float32(width), float32(height)))
 
 	rect := image.Rect(0, 0, int(float64(width)/scale), int(float64(height)/scale))
 
+	targetFPS := 30 // target framerate
+	frametime := time.Duration(1000.0 / targetFPS)
+
+	// set up FPS overlay
+	text := widget.NewLabel("")
+	text.Alignment = fyne.TextAlignLeading
+	text.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
+	text.Move(fyne.NewPos(5.0, 2.0))
+	c.Overlays().Add(text)
+
+	// set up image
+	image := canvas.NewImageFromImage(&image.NRGBA{})
+	image.FillMode = canvas.ImageFillContain
+	image.ScaleMode = canvas.ImageScalePixels
+	if scale < 1 {
+		image.ScaleMode = canvas.ImageScaleSmooth
+	}
+	c.SetContent(image)
+
 	go func() {
+		// rolling avg fps
+		var fpsRolling float64
+		durIdx, durWindow := 0, 5
+		durations := make([]float64, durWindow)
+
 		for {
-			for i := 0.0; i <= 10; i += 0.1 {
-				// TODO: for window resizing
-				// size := w.Content().Size()
-				// width, height := int(size.Width), int(size.Height)
-				// rect := image.Rect(0, 0, width/4, height/4)
+			for i := 0.0; i <= 10; i += 0.05 {
+				start := time.Now()
 
-				// start := time.Now()
-				// todo: use time elapsed for max wait
+				text.SetText(fmt.Sprintf("%-4.1f fps", fpsRolling))
 
-				img := createImage(rect, i)
-				image := canvas.NewImageFromImage(img)
-				image.FillMode = canvas.ImageFillContain
-				image.ScaleMode = canvas.ImageScalePixels
-				if scale < 1 {
-					image.ScaleMode = canvas.ImageScaleSmooth
-				}
-				c.SetContent(image)
+				image.Image = createImage(rect, i)
+				image.Refresh()
 
-				// frame time from fps
-				// fps := 24
-				// frametime := 1000.0 / fps
-				// time.Sleep(time.Duration(frametime))
+				// pause if required to maintain target fps
+				delay := (time.Millisecond * frametime) - time.Since(start)
+				time.Sleep(delay)
 
-				// todo: calculate framerate and update window
+				// keep rolling average of fps over a few frames
+
+				// calculate current framerate
+				fpsActual := 1.0 / time.Since(start).Seconds()
+
+				// update circular buffer with the duration of the current frame
+				durations[durIdx] = fpsActual
+				durIdx = (durIdx + 1) % durWindow
+
+				// calculate the rolling average of framerate over the last x frames
+				fpsRolling = (durations[0] + durations[1] + durations[2] + durations[3] + durations[4]) / float64(durWindow)
+				fpsRolling = math.Round(fpsRolling/0.2) * 0.2 // to nearest 0.2
+
 			}
 		}
 	}()
@@ -113,8 +141,12 @@ func createImage(rect image.Rectangle, i float64) (img *image.NRGBA) {
 	return img
 }
 
+type empty struct{}
+
 // TODO: goroutine parallelise rendering
 func render(img *image.NRGBA, width, height int, fov float64, lights []*rt.Light, spheres []*rt.Sphere) {
+	sem := make(chan empty, width*height) // semaphore pattern
+
 	for i := 0; i < width; i++ {
 		for j := 0; j < height; j++ {
 			// TODO: what are these formulae? abstract into functions?
@@ -124,12 +156,22 @@ func render(img *image.NRGBA, width, height int, fov float64, lights []*rt.Light
 			origin := rt.Vector3f{X: 0, Y: 0, Z: 0}
 			direction := rt.Vector3f{X: x, Y: y, Z: -1}.Normalised()
 
-			c := castRay(origin, direction, lights, spheres, 0)
+			go func(i, j int) {
+				c := castRay(origin, direction, lights, spheres, 0)
+				img.Set(i, j, c)
 
-			img.Set(i, j, c)
+				sem <- empty{}
+			}(i, j)
+
+			// c := castRay(origin, direction, lights, spheres, 0)
+			// img.Set(i, j, c)
 		}
 	}
 
+	// wait for goroutines to finish
+	for i := 0; i < width*height; i++ {
+		<-sem
+	}
 }
 
 func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sphere, depth int) color.NRGBA {
@@ -242,6 +284,8 @@ func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sp
 	}
 }
 
+// TODO: create a scene type with spheres, lights, etc.
+
 func sceneIntersect(origin, direction rt.Vector3f, hit, N *rt.Vector3f, material *rt.Material, spheres []*rt.Sphere) bool {
 	spheresDist := math.MaxFloat64
 
@@ -256,6 +300,7 @@ func sceneIntersect(origin, direction rt.Vector3f, hit, N *rt.Vector3f, material
 	}
 
 	return spheresDist < 1000
+	// return math.Min(checkerboardDist, spheresDist) < 1000
 }
 
 // TODO: rename args to better names

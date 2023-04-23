@@ -5,6 +5,11 @@ go 1.19
 require fyne.io/fyne/v2 v2.3.3
 
 require (
+	github.com/mattn/go-runewidth v0.0.9 // indirect
+	github.com/vcaesar/keycode v0.10.0 // indirect
+)
+
+require (
 	fyne.io/systray v1.10.1-0.20230312215936-7f71b037e260 // indirect
 	github.com/benoitkugler/textlayout v0.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -20,7 +25,10 @@ require (
 	github.com/goki/freetype v1.0.1 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/jsummers/gobmp v0.0.0-20151104160322-e2ba15ffa76e // indirect
+	github.com/micmonay/keybd_event v1.1.1
+	github.com/nsf/termbox-go v1.1.1
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/robotn/gohook v0.40.0
 	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c // indirect
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef // indirect
 	github.com/stretchr/testify v1.8.2 // indirect

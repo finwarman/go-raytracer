@@ -20,6 +20,8 @@ import (
 const MaxRayRecursionDepth = 4
 
 func main() {
+
+	// set up window
 	a := app.New()
 	w := a.NewWindow("wallpaper")
 
@@ -46,7 +48,12 @@ func main() {
 	labelDir.Alignment = fyne.TextAlignLeading
 	labelDir.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
 	labelDir.Move(fyne.NewPos(5.0, 20.0))
+	labelPos := widget.NewLabel("")
+	labelPos.Alignment = fyne.TextAlignLeading
+	labelPos.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
+	labelPos.Move(fyne.NewPos(5.0, 40.0))
 	c.Overlays().Add(labelDir)
+	c.Overlays().Add(labelPos)
 
 	// set up image
 	image := canvas.NewImageFromImage(&image.NRGBA{})
@@ -78,6 +85,9 @@ func main() {
 					thetaY*(180/math.Pi),
 					thetaZ*(180/math.Pi),
 				))
+				labelPos.SetText(fmt.Sprintf("Position: %.2f, %2.1f, %2.1f (X,Y,Z)",
+					posX, posY, posZ,
+				))
 
 				image.Image = createImage(rect, envmap, ((math.Sin(i))*8)+5)
 				image.Refresh()
@@ -103,7 +113,97 @@ func main() {
 		}
 	}()
 
+	// Declare a queue of keyboard events
+	var keyboardEventQueue []fyne.KeyEvent
+
+	// Declare a function to handle keyboard events
+	handleKeyEvent := func(event *fyne.KeyEvent) {
+		// Append the event to the queue
+		keyboardEventQueue = append(keyboardEventQueue, *event)
+	}
+
+	// Set up the keyboard event listener
+	w.Canvas().SetOnTypedKey(handleKeyEvent)
+
+	// default amounts to move (TEMP)
+	// 1 degree
+	deltaAngle := math.Pi / 180
+
+	go func() {
+		// Process the keyboard event queue in a loop
+		for {
+			if len(keyboardEventQueue) > 0 {
+
+				// movementVector := angleToVector(thetaX, thetaY, thetaZ).Multiply(deltaStep)
+				// movementVector := angleToVector(thetaX, thetaY, thetaZ)
+				movementVector := rt.Vector3f{
+					X: math.Sin(thetaY),
+					Y: 0,
+					Z: -math.Cos(thetaY),
+				}
+				strafeVector := rt.Vector3f{
+					X: -movementVector.Z,
+					Y: 0,
+					Z: movementVector.X,
+				}
+
+				// Process the first event in the queue
+				event := keyboardEventQueue[0]
+				switch event.Name {
+				// wasd keys
+				case fyne.KeyS:
+					// posZ += 0.1
+					posX -= movementVector.X
+					posZ -= movementVector.Z
+				case fyne.KeyW:
+					posX += movementVector.X
+					posZ += movementVector.Z
+				case fyne.KeyD:
+					posX += strafeVector.X
+					posZ += strafeVector.Z
+				case fyne.KeyA:
+					posX -= strafeVector.X
+					posZ -= strafeVector.Z
+				// arrow keys
+				case fyne.KeyDown:
+					thetaX += deltaAngle
+				case fyne.KeyUp:
+					thetaX -= deltaAngle
+				case fyne.KeyRight:
+					thetaY += deltaAngle
+				case fyne.KeyLeft:
+					thetaY -= deltaAngle
+				default:
+					fmt.Println("Unknown key pressed")
+				}
+				// Remove the event from the queue
+				keyboardEventQueue = keyboardEventQueue[1:]
+			}
+
+			// Do other work here, or sleep to avoid busy-waiting
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
 	w.ShowAndRun()
+}
+
+func angleToVector(x, y, z float64) rt.Vector3f {
+	// // Convert angles from degrees to radians
+	// xr := x * math.Pi / 180.0
+	// yr := y * math.Pi / 180.0
+	// zr := z * math.Pi / 180.0
+	xr := x
+	yr := y
+	zr := z
+	// (already converted)
+
+	// Calculate the vector of direction
+	xdir := math.Cos(zr)*math.Sin(yr)*math.Cos(xr) + math.Sin(zr)*math.Sin(xr)
+	ydir := math.Sin(zr)*math.Sin(yr)*math.Cos(xr) - math.Cos(zr)*math.Sin(xr)
+	zdir := math.Cos(yr) * math.Cos(xr)
+
+	return rt.Vector3f{X: xdir, Y: ydir, Z: zdir}
 }
 
 func createImage(rect image.Rectangle, envmap *image.NRGBA, i float64) (img *image.NRGBA) {
@@ -179,16 +279,28 @@ var thetaX = 0.0 // rotation around x-axis
 var thetaY = 0.0 // rotation around y-axis
 var thetaZ = 0.0 // rotation around z-axis
 
+// TEMP camera position
+var posX = 0.0
+var posY = 0.0
+var posZ = 0.0
+
 func render(img *image.NRGBA, width, height int, fov float64, scene *rt.Scene, _offset float64) {
 	sem := make(chan empty, width) // semaphore pattern
 
 	// camera position and direction
-	origin := rt.Vector3f{X: 0, Y: 0, Z: 0}
+	// origin := rt.Vector3f{X: 0, Y: 0, Z: 0}
+	origin := rt.Vector3f{X: posX, Y: posY, Z: posZ}
+
 	// direction := rt.Vector3f{X: 0, Y: 0, Z: -1}
 
 	// rotation angle (radians) (e.g. pi/4 = 45 degrees)
 	// angle := math.Pi / 4
-	thetaY = math.Mod(thetaY+(math.Pi/180), math.Pi*2) // 1 degree,
+	// thetaY = math.Mod(thetaY+(math.Pi/180), math.Pi*2) // 1 degree,
+
+	// limit to 360
+	thetaX = math.Mod(thetaX, math.Pi*2)
+	thetaY = math.Mod(thetaY, math.Pi*2)
+	thetaZ = math.Mod(thetaZ, math.Pi*2)
 
 	// rotation matrix around y-axis
 	rotationMatrix := [4][4]float64{

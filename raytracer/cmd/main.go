@@ -26,7 +26,7 @@ func main() {
 	c := w.Canvas()
 
 	width, height := 1024, 768
-	scale := 2.5 // pixels per pixel in image
+	scale := 3.0 // pixels per pixel in image
 	w.Resize(fyne.NewSize(float32(width), float32(height)))
 
 	rect := image.Rect(0, 0, int(float64(width)/scale), int(float64(height)/scale))
@@ -35,11 +35,18 @@ func main() {
 	frametime := time.Duration(1000.0 / targetFPS)
 
 	// set up FPS overlay
-	text := widget.NewLabel("")
-	text.Alignment = fyne.TextAlignLeading
-	text.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
-	text.Move(fyne.NewPos(5.0, 2.0))
-	c.Overlays().Add(text)
+	labelFps := widget.NewLabel("")
+	labelFps.Alignment = fyne.TextAlignLeading
+	labelFps.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
+	labelFps.Move(fyne.NewPos(5.0, 2.0))
+	c.Overlays().Add(labelFps)
+
+	// set up Direction/Position overlay
+	labelDir := widget.NewLabel("")
+	labelDir.Alignment = fyne.TextAlignLeading
+	labelDir.TextStyle = fyne.TextStyle{Bold: true, Monospace: true}
+	labelDir.Move(fyne.NewPos(5.0, 20.0))
+	c.Overlays().Add(labelDir)
 
 	// set up image
 	image := canvas.NewImageFromImage(&image.NRGBA{})
@@ -52,7 +59,7 @@ func main() {
 
 	// load background image
 	pwd, _ := os.Getwd()
-	envmap := loadImage(pwd + "/files/envmap.jpg")
+	envmap := loadImage(pwd + "/files/envmap-coast.jpg")
 
 	go func() {
 		// rolling avg fps
@@ -65,7 +72,12 @@ func main() {
 			for i := min; i <= max; i += offset {
 				start := time.Now()
 
-				text.SetText(fmt.Sprintf("%-4.1f fps", fpsRolling))
+				labelFps.SetText(fmt.Sprintf("%-4.1f fps", fpsRolling))
+				labelDir.SetText(fmt.Sprintf("Camera: %2.1f, %2.1f, %2.1f (X,Y,Z)°",
+					thetaX*(180/math.Pi),
+					thetaY*(180/math.Pi),
+					thetaZ*(180/math.Pi),
+				))
 
 				image.Image = createImage(rect, envmap, ((math.Sin(i))*8)+5)
 				image.Refresh()
@@ -96,6 +108,7 @@ func main() {
 
 func createImage(rect image.Rectangle, envmap *image.NRGBA, i float64) (img *image.NRGBA) {
 	width, height := rect.Dx(), rect.Dy()
+	// fov := (math.Pi / 3.0) + (-0.1 + (i / 10))
 	fov := math.Pi / 3.0
 
 	stride := width * 4
@@ -145,31 +158,66 @@ func createImage(rect image.Rectangle, envmap *image.NRGBA, i float64) (img *ima
 		},
 	}
 
-	render(img, width, height, fov, lights, spheres, envmap)
+	scene := &rt.Scene{
+		EnvMap:  envmap,
+		Lights:  lights,
+		Spheres: spheres,
+	}
+
+	render(img, width, height, fov, scene, i)
 	return img
 }
 
 type empty struct{}
 
-func render(img *image.NRGBA, width, height int, fov float64, lights []*rt.Light, spheres []*rt.Sphere, envmap *image.NRGBA) {
+// TODO: pass in a scene to render, not jsut individual obejcts
+// ALSO: pass in a camera position to render from
+
+// TEMP (use a proper object)
+// rotation angles (radians)
+var thetaX = 0.0 // rotation around x-axis
+var thetaY = 0.0 // rotation around y-axis
+var thetaZ = 0.0 // rotation around z-axis
+
+func render(img *image.NRGBA, width, height int, fov float64, scene *rt.Scene, _offset float64) {
 	sem := make(chan empty, width) // semaphore pattern
+
+	// camera position and direction
+	origin := rt.Vector3f{X: 0, Y: 0, Z: 0}
+	// direction := rt.Vector3f{X: 0, Y: 0, Z: -1}
+
+	// rotation angle (radians) (e.g. pi/4 = 45 degrees)
+	// angle := math.Pi / 4
+	thetaY = math.Mod(thetaY+(math.Pi/180), math.Pi*2) // 1 degree,
+
+	// rotation matrix around y-axis
+	rotationMatrix := [4][4]float64{
+		{math.Cos(thetaY), 0, -math.Sin(thetaY), 0},
+		{0, 1, 0, 0},
+		{math.Sin(thetaY), 0, math.Cos(thetaY), 0},
+		{0, 0, 0, 1},
+	}
+
+	// apply rotation to direction vector
+	// direction = direction.MultiplyMatrix4x4(rotationMatrix).Normalised()
 
 	for i := 0; i < width; i++ {
 		go func(i int) {
 			for j := 0; j < height; j++ {
-				// TODO: what are these formulae? abstract into functions?
+				// calculate ray direction
 				x := (2*(float64(i)+0.5)/float64(width) - 1) * math.Tan(fov/2.0) * float64(width) / float64(height)
 				y := -1.0 * (2*(float64(j)+0.5)/float64(height) - 1) * math.Tan(fov/2.0)
+				rayDirection := rt.Vector3f{X: x, Y: y, Z: -1}.Normalised()
 
-				origin := rt.Vector3f{X: 0, Y: 0, Z: 0}
-				direction := rt.Vector3f{X: x, Y: y, Z: -1}.Normalised()
+				// apply rotation to ray direction
+				rayDirection = rayDirection.MultiplyMatrix4x4(rotationMatrix).Normalised()
 
-				c := castRay(origin, direction, lights, spheres, envmap, 0)
+				// cast ray
+				c := castRay(origin, rayDirection, scene, 0)
 				img.Set(i, j, c)
 			}
 			sem <- empty{}
 		}(i)
-
 	}
 
 	// TODO: for parallelism, use a work-stealing approach so many workers aren't
@@ -183,9 +231,13 @@ func render(img *image.NRGBA, width, height int, fov float64, lights []*rt.Light
 	}
 }
 
-func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sphere, envmap *image.NRGBA, depth int) color.NRGBA {
+func castRay(origin, direction rt.Vector3f, scene *rt.Scene, depth int) color.NRGBA {
 	var point, normal rt.Vector3f
 	var material rt.Material
+
+	lights := scene.Lights
+	spheres := scene.Spheres
+	envmap := scene.EnvMap
 
 	if depth > MaxRayRecursionDepth || !sceneIntersect(origin, direction, &point, &normal, &material, spheres) {
 		// return rt.BackgroundColour
@@ -196,9 +248,12 @@ func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sp
 		u := 0.5 + (math.Atan2(direction.Z, direction.X) / (2 * math.Pi))
 		v := 0.5 - (math.Asin(direction.Y) / (math.Pi))
 		imgWidth, imgHeight := envmap.Bounds().Dx(), envmap.Bounds().Dy()
+		// x := int(u * float64(imgWidth))
+		// y := int(v * float64(imgHeight))
+
+		// focus?
 		x := int(u * float64(imgWidth))
 		y := int(v * float64(imgHeight))
-
 		bg := *envmap
 		r, g, b, a := bg.At(x, y).RGBA()
 		return color.NRGBA{
@@ -228,14 +283,14 @@ func castRay(origin, direction rt.Vector3f, lights []*rt.Light, spheres []*rt.Sp
 	}
 
 	// recursively calculate reflections (up to max depth)
-	reflectColour := castRay(reflectOrigin, reflectDir, lights, spheres, envmap, depth+1)
+	reflectColour := castRay(reflectOrigin, reflectDir, scene, depth+1)
 	reflectColourVec := rt.Vector3f{
 		X: float64(reflectColour.R),
 		Y: float64(reflectColour.G),
 		Z: float64(reflectColour.B),
 	}
 
-	refractColour := castRay(refractOrigin, refractDir, lights, spheres, envmap, depth+1)
+	refractColour := castRay(refractOrigin, refractDir, scene, depth+1)
 	refractColourVec := rt.Vector3f{
 		X: float64(refractColour.R),
 		Y: float64(refractColour.G),

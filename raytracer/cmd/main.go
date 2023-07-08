@@ -133,9 +133,7 @@ func main() {
 		// Process the keyboard event queue in a loop
 		for {
 			if len(keyboardEventQueue) > 0 {
-
-				// movementVector := angleToVector(thetaX, thetaY, thetaZ).Multiply(deltaStep)
-				// movementVector := angleToVector(thetaX, thetaY, thetaZ)
+				// Calculate movement vectors
 				movementVector := rt.Vector3f{
 					X: math.Sin(thetaY),
 					Y: 0,
@@ -188,24 +186,6 @@ func main() {
 
 	w.ShowAndRun()
 }
-
-// func angleToVector(x, y, z float64) rt.Vector3f {
-// 	// // Convert angles from degrees to radians
-// 	// xr := x * math.Pi / 180.0
-// 	// yr := y * math.Pi / 180.0
-// 	// zr := z * math.Pi / 180.0
-// 	xr := x
-// 	yr := y
-// 	zr := z
-// 	// (already converted)
-
-// 	// Calculate the vector of direction
-// 	xdir := math.Cos(zr)*math.Sin(yr)*math.Cos(xr) + math.Sin(zr)*math.Sin(xr)
-// 	ydir := math.Sin(zr)*math.Sin(yr)*math.Cos(xr) - math.Cos(zr)*math.Sin(xr)
-// 	zdir := math.Cos(yr) * math.Cos(xr)
-
-// 	return rt.Vector3f{X: xdir, Y: ydir, Z: zdir}
-// }
 
 func createImage(rect image.Rectangle, envmap *image.NRGBA, i float64) (img *image.NRGBA) {
 	width, height := rect.Dx(), rect.Dy()

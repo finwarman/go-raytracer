@@ -23,7 +23,7 @@ func main() {
 
 	// set up window
 	a := app.New()
-	w := a.NewWindow("wallpaper")
+	w := a.NewWindow("raytracer")
 
 	c := w.Canvas()
 
@@ -260,9 +260,9 @@ func createImage(rect image.Rectangle, envmap *image.NRGBA, i float64) (img *ima
 	}
 
 	scene := &rt.Scene{
-		EnvMap:    envmap,
-		Lights:    lights,
-		Spheres:   spheres,
+		EnvMap:  envmap,
+		Lights:  lights,
+		Spheres: spheres,
 	}
 
 	render(img, width, height, fov, scene, i)

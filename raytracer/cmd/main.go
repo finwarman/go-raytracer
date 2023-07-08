@@ -151,6 +151,7 @@ func main() {
 				event := keyboardEventQueue[0]
 				switch event.Name {
 				// wasd keys
+				// (only move along X-Z, not y)
 				case fyne.KeyS:
 					// posZ += 0.1
 					posX -= movementVector.X
@@ -188,23 +189,23 @@ func main() {
 	w.ShowAndRun()
 }
 
-func angleToVector(x, y, z float64) rt.Vector3f {
-	// // Convert angles from degrees to radians
-	// xr := x * math.Pi / 180.0
-	// yr := y * math.Pi / 180.0
-	// zr := z * math.Pi / 180.0
-	xr := x
-	yr := y
-	zr := z
-	// (already converted)
+// func angleToVector(x, y, z float64) rt.Vector3f {
+// 	// // Convert angles from degrees to radians
+// 	// xr := x * math.Pi / 180.0
+// 	// yr := y * math.Pi / 180.0
+// 	// zr := z * math.Pi / 180.0
+// 	xr := x
+// 	yr := y
+// 	zr := z
+// 	// (already converted)
 
-	// Calculate the vector of direction
-	xdir := math.Cos(zr)*math.Sin(yr)*math.Cos(xr) + math.Sin(zr)*math.Sin(xr)
-	ydir := math.Sin(zr)*math.Sin(yr)*math.Cos(xr) - math.Cos(zr)*math.Sin(xr)
-	zdir := math.Cos(yr) * math.Cos(xr)
+// 	// Calculate the vector of direction
+// 	xdir := math.Cos(zr)*math.Sin(yr)*math.Cos(xr) + math.Sin(zr)*math.Sin(xr)
+// 	ydir := math.Sin(zr)*math.Sin(yr)*math.Cos(xr) - math.Cos(zr)*math.Sin(xr)
+// 	zdir := math.Cos(yr) * math.Cos(xr)
 
-	return rt.Vector3f{X: xdir, Y: ydir, Z: zdir}
-}
+// 	return rt.Vector3f{X: xdir, Y: ydir, Z: zdir}
+// }
 
 func createImage(rect image.Rectangle, envmap *image.NRGBA, i float64) (img *image.NRGBA) {
 	width, height := rect.Dx(), rect.Dy()
@@ -259,9 +260,9 @@ func createImage(rect image.Rectangle, envmap *image.NRGBA, i float64) (img *ima
 	}
 
 	scene := &rt.Scene{
-		EnvMap:  envmap,
-		Lights:  lights,
-		Spheres: spheres,
+		EnvMap:    envmap,
+		Lights:    lights,
+		Spheres:   spheres,
 	}
 
 	render(img, width, height, fov, scene, i)
@@ -303,10 +304,18 @@ func render(img *image.NRGBA, width, height int, fov float64, scene *rt.Scene, _
 	thetaZ = math.Mod(thetaZ, math.Pi*2)
 
 	// rotation matrix around y-axis
-	rotationMatrix := [4][4]float64{
+	rotationMatrixY := [4][4]float64{
 		{math.Cos(thetaY), 0, -math.Sin(thetaY), 0},
 		{0, 1, 0, 0},
 		{math.Sin(thetaY), 0, math.Cos(thetaY), 0},
+		{0, 0, 0, 1},
+	}
+
+	// rotation matrix around x-axis
+	rotationMatrixX := [4][4]float64{
+		{1, 0, 0, 0},
+		{0, math.Cos(thetaX), math.Sin(thetaX), 0},
+		{0, -math.Sin(thetaX), math.Cos(thetaX), 0},
 		{0, 0, 0, 1},
 	}
 
@@ -322,7 +331,8 @@ func render(img *image.NRGBA, width, height int, fov float64, scene *rt.Scene, _
 				rayDirection := rt.Vector3f{X: x, Y: y, Z: -1}.Normalised()
 
 				// apply rotation to ray direction
-				rayDirection = rayDirection.MultiplyMatrix4x4(rotationMatrix).Normalised()
+				// rayDirection = rayDirection.MultiplyMatrix4x4(rotationMatrix).Normalised()
+				rayDirection = rayDirection.MultiplyMatrix4x4(rotationMatrixX).MultiplyMatrix4x4(rotationMatrixY).Normalised()
 
 				// cast ray
 				c := castRay(origin, rayDirection, scene, 0)
